@@ -1,0 +1,6 @@
+{
+  "name": "StreamPlay",
+  "description": "A feature-rich, modern video streaming Android app with adaptive playback, user profiles, video downloads, play history, creator studio, and intelligent recommendations via Gemini integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

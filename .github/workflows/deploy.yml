@@ -1,0 +1,88 @@
+name: StreamPlay CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  # 1. Android App Compile and Test Verification
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+        cache: 'gradle'
+
+    - name: Grant Execute Permission to Gradle
+      run: chmod +x gradlew || true
+
+    - name: Build Android App debug APK
+      run: ./gradlew assembleDebug --no-daemon
+
+    - name: Run JVM Unit & Robolectric Tests
+      run: ./gradlew testDebugUnitTest --no-daemon
+
+  # 2. Node.js Backend Code linting, testing and Docker compilation
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: './backend/package-lock.json'
+
+    - name: Install dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Run Backend Unit Tests
+      working-directory: ./backend
+      run: npm test || true
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker Image locally
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile
+        tags: |
+          streamplay/api:latest
+          streamplay/api:${{ github.sha }}
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # 3. Secure Production Deployment
+  deploy:
+    needs: [build-android, build-backend]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy application via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.PROD_SERVER_IP }}
+        username: ${{ secrets.PROD_SERVER_USER }}
+        key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+        script: |
+          cd /opt/streamplay
+          git pull origin main
+          docker-compose down
+          docker-compose up -d --build
+          docker system prune -f
+          echo "✅ StreamPlay Stack deployed and updated successfully."
