@@ -70,7 +70,7 @@ router.get('/', optionalAuthenticateToken, async (req, res) => {
   }
 
   try {
-    let sql = 'SELECT * FROM videos WHERE 1=1';
+    let sql = 'SELECT id, title, description, video_url AS "videoUrl", thumbnail_url AS "thumbnailUrl", creator_id AS "creatorId", creator_name AS "creatorName", creator_avatar AS "creatorAvatar", views, likes, dislikes, duration, upload_date AS "uploadDate", category, is_live AS "isLive", is_short AS "isShort", comments_count AS "commentsCount" FROM videos WHERE 1=1';
     const params = [];
 
     if (isShort === 'true') {
@@ -98,20 +98,20 @@ router.get('/', optionalAuthenticateToken, async (req, res) => {
       id: row.id,
       title: row.title,
       description: row.description,
-      videoUrl: row.video_url,
-      thumbnailUrl: row.thumbnail_url,
-      creatorId: row.creator_id,
-      creatorName: row.creator_name,
-      creatorAvatar: row.creator_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+      videoUrl: row.videoUrl !== undefined ? row.videoUrl : row.video_url,
+      thumbnailUrl: row.thumbnailUrl !== undefined ? row.thumbnailUrl : row.thumbnail_url,
+      creatorId: row.creatorId !== undefined ? row.creatorId : row.creator_id,
+      creatorName: row.creatorName !== undefined ? row.creatorName : row.creator_name,
+      creatorAvatar: (row.creatorAvatar !== undefined ? row.creatorAvatar : row.creator_avatar) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
       views: parseInt(row.views || 0),
       likes: parseInt(row.likes || 0),
       dislikes: parseInt(row.dislikes || 0),
       duration: row.duration,
-      uploadDate: row.upload_date,
+      uploadDate: row.uploadDate !== undefined ? row.uploadDate : row.upload_date,
       category: row.category,
-      isLive: !!row.is_live,
-      isShort: !!row.is_short,
-      commentsCount: parseInt(row.comments_count || 0),
+      isLive: row.isLive !== undefined ? !!row.isLive : !!row.is_live,
+      isShort: row.isShort !== undefined ? !!row.isShort : !!row.is_short,
+      commentsCount: parseInt(row.commentsCount !== undefined ? row.commentsCount : (row.comments_count || 0)),
       shareUrl: `https://streamplay.aistudio.com/v/${row.id}`
     }));
 
@@ -128,7 +128,7 @@ router.get('/', optionalAuthenticateToken, async (req, res) => {
 router.get('/:id', optionalAuthenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const { rows } = await db.query('SELECT * FROM videos WHERE id = $1', [id]);
+    const { rows } = await db.query('SELECT id, title, description, video_url AS "videoUrl", thumbnail_url AS "thumbnailUrl", creator_id AS "creatorId", creator_name AS "creatorName", creator_avatar AS "creatorAvatar", views, likes, dislikes, duration, upload_date AS "uploadDate", category, is_live AS "isLive", is_short AS "isShort", comments_count AS "commentsCount" FROM videos WHERE id = $1', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Video not found' });
     }
@@ -144,20 +144,20 @@ router.get('/:id', optionalAuthenticateToken, async (req, res) => {
       id: row.id,
       title: row.title,
       description: row.description,
-      videoUrl: row.video_url,
-      thumbnailUrl: row.thumbnail_url,
-      creatorId: row.creator_id,
-      creatorName: row.creator_name,
-      creatorAvatar: row.creator_avatar,
+      videoUrl: row.videoUrl !== undefined ? row.videoUrl : row.video_url,
+      thumbnailUrl: row.thumbnailUrl !== undefined ? row.thumbnailUrl : row.thumbnail_url,
+      creatorId: row.creatorId !== undefined ? row.creatorId : row.creator_id,
+      creatorName: row.creatorName !== undefined ? row.creatorName : row.creator_name,
+      creatorAvatar: row.creatorAvatar !== undefined ? row.creatorAvatar : row.creator_avatar,
       views: parseInt(row.views || 0) + 1,
       likes: parseInt(row.likes || 0),
       dislikes: parseInt(row.dislikes || 0),
       duration: row.duration,
-      uploadDate: row.upload_date,
+      uploadDate: row.uploadDate !== undefined ? row.uploadDate : row.upload_date,
       category: row.category,
-      isLive: !!row.is_live,
-      isShort: !!row.is_short,
-      commentsCount: parseInt(row.comments_count || 0),
+      isLive: row.isLive !== undefined ? !!row.isLive : !!row.is_live,
+      isShort: row.isShort !== undefined ? !!row.isShort : !!row.is_short,
+      commentsCount: parseInt(row.commentsCount !== undefined ? row.commentsCount : (row.comments_count || 0)),
       shareUrl: `https://streamplay.aistudio.com/v/${row.id}`
     });
   } catch (err) {
@@ -198,7 +198,7 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
 
     await db.query(`
       INSERT INTO videos (
-        id, title, description, video_url, thumbnailUrl, creator_id,
+        id, title, description, video_url, thumbnail_url, creator_id,
         creator_name, creator_avatar, views, likes, dislikes,
         duration, upload_date, category, is_live, is_short, comments_count
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)

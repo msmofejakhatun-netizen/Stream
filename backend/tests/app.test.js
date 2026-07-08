@@ -22,7 +22,7 @@ jest.mock('../config/db', () => {
       if (sql.includes('INSERT INTO users')) {
         return Promise.resolve({ rows: [] });
       }
-      if (sql.includes('SELECT * FROM videos')) {
+      if (sql.includes('FROM videos')) {
         return Promise.resolve({
           rows: [
             { id: 'vid_1', title: 'Test Video', description: 'Test', video_url: 'http://test.com', thumbnail_url: 'http://test.jpg', creator_id: 'creator_1', creator_name: 'Creator' }

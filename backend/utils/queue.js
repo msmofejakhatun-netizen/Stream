@@ -123,7 +123,7 @@ async function processNextJob() {
       // 3. Save processed video into the main videos database
       await db.query(`
         INSERT INTO videos (
-          id, title, description, video_url, thumbnailUrl, creator_id,
+          id, title, description, video_url, thumbnail_url, creator_id,
           creator_name, creator_avatar, views, likes, dislikes,
           duration, upload_date, category, is_live, is_short, comments_count
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
