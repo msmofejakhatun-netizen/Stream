@@ -112,12 +112,22 @@ async function processNextJob() {
         // Sync local playlist and ts files to cloud
         await uploadHLSDirectory(localVideoFolder, s3Prefix);
 
-        // Map URL back to S3
-        if (process.env.S3_BUCKET_NAME) {
-          const defaultEndpoint = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
-          const baseS3Url = process.env.S3_PUBLIC_URL || defaultEndpoint;
-          finalVideoUrl = `${baseS3Url}/${s3Prefix}/master.m3u8`;
-          finalThumbnailUrl = `${baseS3Url}/${s3Prefix}/thumbnail.jpg`;
+        // Map URL back to Cloudflare R2 / S3
+        const r2Bucket = process.env.R2_BUCKET || process.env.S3_BUCKET_NAME;
+        if (r2Bucket) {
+          let baseR2Url = process.env.R2_PUBLIC_URL || process.env.S3_PUBLIC_URL;
+          if (!baseR2Url) {
+            if (process.env.R2_ACCOUNT_ID) {
+              baseR2Url = `https://${r2Bucket}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+            } else {
+              baseR2Url = `https://${r2Bucket}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
+            }
+          }
+          if (baseR2Url.endsWith('/')) {
+            baseR2Url = baseR2Url.slice(0, -1);
+          }
+          finalVideoUrl = `${baseR2Url}/${s3Prefix}/master.m3u8`;
+          finalThumbnailUrl = `${baseR2Url}/${s3Prefix}/thumbnail.jpg`;
         }
       }
 

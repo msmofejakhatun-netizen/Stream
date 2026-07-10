@@ -107,12 +107,16 @@ async function initDB() {
     const { rows } = await client.query('SELECT COUNT(*) FROM videos');
     if (parseInt(rows[0].count) === 0) {
       console.log('Seeding initial videos into database...');
+      
+      const r2PublicUrl = process.env.R2_PUBLIC_URL || 'https://pub-streamplay.r2.dev';
+      const cleanR2Url = r2PublicUrl.endsWith('/') ? r2PublicUrl.slice(0, -1) : r2PublicUrl;
+
       const seedVideos = [
         {
           id: 'vid_1',
           title: 'Introduction to Jetpack Compose: Building Beautiful Interfaces',
           description: 'Learn how to build modern Android UIs with Jetpack Compose. This video covers layouts, state management, modifiers, and standard material design 3 UI components with best practices.',
-          video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+          video_url: `${cleanR2Url}/sample/BigBuckBunny.mp4`,
           thumbnail_url: 'https://images.unsplash.com/photo-1607799279861-4dd421887fb3?auto=format&fit=crop&w=640&q=80',
           creator_id: 'creator_android_dev',
           creator_name: 'Android Developer Academy',
@@ -131,7 +135,7 @@ async function initDB() {
           id: 'vid_2',
           title: 'Top 10 High-Performance Rust Frameworks in 2026',
           description: 'Explore the cutting-edge of system development with the top Rust web and desktop frameworks. We measure request latency, memory footprint, and compile times in high-concurrency environments.',
-          video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+          video_url: `${cleanR2Url}/sample/ElephantsDream.mp4`,
           thumbnail_url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=640&q=80',
           creator_id: 'creator_rustacean',
           creator_name: 'The Coding Sanctuary',
@@ -150,7 +154,7 @@ async function initDB() {
           id: 'vid_3',
           title: 'Epic Live Chillstep Session for Late-Night Coding 🎧',
           description: 'Sit back, focus, and stream these high-quality lofi and chillstep beats designed specifically for deep flow state programming sessions. Active 24/7 with a welcoming chat community.',
-          video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+          video_url: `${cleanR2Url}/sample/ForBiggerBlazes.mp4`,
           thumbnail_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=640&q=80',
           creator_id: 'creator_lofi_beats',
           creator_name: 'Sonic Horizon',
@@ -169,7 +173,7 @@ async function initDB() {
           id: 'vid_shorts_1',
           title: 'How does database indexing work in 60 seconds?',
           description: 'The absolute fastest way to understand B-Trees, lookup complexity, and why indexing makes select queries lightning fast.',
-          video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
+          video_url: `${cleanR2Url}/sample/WeAreGoingOnBullrun.mp4`,
           thumbnail_url: 'https://images.unsplash.com/photo-1544383835-bda2bc66a55d?auto=format&fit=crop&w=640&q=80',
           creator_id: 'creator_android_dev',
           creator_name: 'Android Developer Academy',

@@ -275,7 +275,7 @@ class VideoViewModel(private val repository: VideoRepository) : ViewModel() {
                 id = "vid_report_1",
                 title = "Phishing Scams Unveiled: Get rich quick scheme details",
                 description = "This video contains dubious links promising financial returns. Marked as potentially harmful by moderators.",
-                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+                videoUrl = "https://pub-streamplay.r2.dev/sample/ElephantsDream.mp4",
                 thumbnailUrl = "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=640&q=80",
                 creatorId = "creator_scam",
                 creatorName = "QuickCryptoWealth",
