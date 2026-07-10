@@ -32,6 +32,7 @@ async function initQueueTable() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await db.query('ALTER TABLE transcoding_jobs ADD COLUMN IF NOT EXISTS retries INT DEFAULT 0;').catch(() => {});
     logger.info('Transcoding job queue table verified/created.');
   } catch (error) {
     logger.error(`Failed to initialize transcoding job queue table: ${error.message}`);
@@ -100,7 +101,7 @@ async function processNextJob() {
       const results = await processVideo(job.input_path, job.video_id);
 
       // S3 Cloud storage sync if enabled
-      const host = process.env.SERVER_HOST_URL || `http://localhost:5000`;
+      const host = process.env.SERVER_HOST_URL || `https://stream-streamplay.up.railway.app`;
       let finalVideoUrl = results.hlsUrl.startsWith('http') ? results.hlsUrl : `${host}${results.hlsUrl}`;
       let finalThumbnailUrl = results.thumbnailUrl.startsWith('http') ? results.thumbnailUrl : `${host}${results.thumbnailUrl}`;
 
@@ -168,11 +169,22 @@ async function processNextJob() {
 
     } catch (jobError) {
       logger.error(`Job processing failed for ${job.id}: ${jobError.message}`);
-      await db.query(`
-        UPDATE transcoding_jobs 
-        SET status = 'failed', error_message = $1, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = $2
-      `, [jobError.message, job.id]);
+      const currentRetries = parseInt(job.retries || 0);
+      if (currentRetries < 3) {
+        logger.info(`Retrying job ${job.id} (Attempt ${currentRetries + 1}/3)...`);
+        await db.query(`
+          UPDATE transcoding_jobs 
+          SET status = 'pending', retries = retries + 1, error_message = $1, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = $2
+        `, [jobError.message, job.id]);
+      } else {
+        logger.error(`Job ${job.id} reached maximum retries and has failed completely.`);
+        await db.query(`
+          UPDATE transcoding_jobs 
+          SET status = 'failed', error_message = $1, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = $2
+        `, [jobError.message, job.id]);
+      }
     }
 
   } catch (dbError) {

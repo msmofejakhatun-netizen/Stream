@@ -25,10 +25,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import kotlinx.coroutines.launch
 import com.example.database.WatchHistoryEntity
 import com.example.models.Video
 import com.example.presentation.VideoViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: VideoViewModel,
@@ -40,12 +44,26 @@ fun HomeScreen(
     val watchHistory by viewModel.watchHistory.collectAsState()
 
     val categories = listOf("Recommended", "Trending", "Gaming", "Music", "News", "Education", "Live")
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                viewModel.selectCategory(selectedCategory)
+                kotlinx.coroutines.delay(1200)
+                isRefreshing = false
+            }
+        },
+        modifier = modifier.fillMaxSize()
     ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
         // Hero Banner at the top
         item {
             HeroRecommendationBanner(
@@ -163,6 +181,7 @@ fun HomeScreen(
         item {
             Spacer(modifier = Modifier.height(80.dp))
         }
+    }
     }
 }
 

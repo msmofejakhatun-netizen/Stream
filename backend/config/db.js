@@ -95,6 +95,14 @@ async function initDB() {
       );
     `);
 
+    // Create database indexes to optimize queries
+    await client.query('CREATE INDEX IF NOT EXISTS idx_videos_is_short ON videos(is_short);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_videos_category ON videos(category);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_videos_creator_id ON videos(creator_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_comments_video_id ON comments(video_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_video_likes_video_id ON video_likes(video_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id_creator_id ON subscriptions(user_id, creator_id);');
+
     // Seed data if no videos exist
     const { rows } = await client.query('SELECT COUNT(*) FROM videos');
     if (parseInt(rows[0].count) === 0) {

@@ -239,35 +239,32 @@ class VideoViewModel(private val repository: VideoRepository) : ViewModel() {
     private val _studioUploadingState = MutableStateFlow<String?>(null) // null, "uploading", "transcoding", "done"
     val studioUploadingState: StateFlow<String?> = _studioUploadingState.asStateFlow()
 
+    private val _uploadProgress = MutableStateFlow(0)
+    val uploadProgress: StateFlow<Int> = _uploadProgress.asStateFlow()
+
     fun uploadSimulatedVideo(title: String, description: String, category: String, duration: String) {
         viewModelScope.launch {
             _studioUploadingState.value = "uploading"
-            kotlinx.coroutines.delay(1000)
-            _studioUploadingState.value = "transcoding"
-            kotlinx.coroutines.delay(1000)
-            
-            val newVideo = Video(
-                id = "vid_upload_" + UUID.randomUUID().toString().take(6),
-                title = title,
-                description = description,
-                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-                thumbnailUrl = "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=640&q=80",
-                creatorId = "creator_user",
-                creatorName = "My Creator Studio",
-                creatorAvatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80",
-                views = 0,
-                likes = 0,
-                dislikes = 0,
-                duration = duration.ifBlank { "05:00" },
-                uploadDate = "Scheduled",
-                category = category,
-                commentsCount = 0
-            )
-            
-            _uploadedVideos.value = _uploadedVideos.value + newVideo
-            _studioUploadingState.value = "done"
-            kotlinx.coroutines.delay(500)
-            _studioUploadingState.value = null
+            _uploadProgress.value = 0
+            try {
+                val newVideo = repository.uploadDummyVideo(
+                    title = title,
+                    description = description,
+                    category = category,
+                    onProgress = { progress ->
+                        _uploadProgress.value = progress
+                    }
+                )
+                _uploadedVideos.value = _uploadedVideos.value + newVideo
+                _studioUploadingState.value = "done"
+                kotlinx.coroutines.delay(1000)
+                _studioUploadingState.value = null
+            } catch (e: Exception) {
+                android.util.Log.e("VideoViewModel", "Network upload failed: ${e.message}")
+                _studioUploadingState.value = "error"
+                kotlinx.coroutines.delay(2000)
+                _studioUploadingState.value = null
+            }
         }
     }
 

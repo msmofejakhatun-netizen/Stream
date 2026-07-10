@@ -160,8 +160,7 @@ interface StreamPlayApiService {
 }
 
 object StreamPlayRetrofitClient {
-    // Dynamic URL fallback matching standard development container context
-    private const val BASE_URL = "https://ais-dev-gcqrwcvq4r43ocywbvgn7x-1075067522372.asia-southeast1.run.app/"
+    private const val BASE_URL = "https://stream-streamplay.up.railway.app/"
 
     private var authToken: String? = null
 
@@ -178,11 +177,17 @@ object StreamPlayRetrofitClient {
         chain.proceed(requestBuilder.build())
     }
 
+    private val loggingInterceptor = okhttp3.logging.HttpLoggingInterceptor().apply {
+        level = okhttp3.logging.HttpLoggingInterceptor.Level.BODY
+    }
+
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .addInterceptor(authInterceptor)
+        .addInterceptor(loggingInterceptor)
+        .retryOnConnectionFailure(true)
         .build()
 
     private val moshi = Moshi.Builder()

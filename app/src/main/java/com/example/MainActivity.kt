@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
 
         // Core Database & Repo Setup
         val database = AppDatabase.getDatabase(applicationContext)
-        val authRepository = AuthRepository()
+        val authRepository = AuthRepository(applicationContext)
         val videoRepository = VideoRepository(
             context = applicationContext,
             watchHistoryDao = database.watchHistoryDao(),

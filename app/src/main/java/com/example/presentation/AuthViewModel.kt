@@ -10,6 +10,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
+    init {
+        viewModelScope.launch {
+            authRepository.checkSession()
+        }
+    }
+
     val currentUser: StateFlow<UserProfile?> = authRepository.currentUser
         .stateIn(
             scope = viewModelScope,

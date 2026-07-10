@@ -32,10 +32,26 @@ const config = {
 let nms = null;
 
 function startLiveServer() {
+  if (process.env.DISABLE_RTMP === 'true') {
+    logger.warn('RTMP Streaming Server is deactivated via DISABLE_RTMP configuration.');
+    return;
+  }
+
   const hlsDir = path.join(__dirname, '..', 'public', 'uploads');
   config.trans.tasks[0].hlsOutput = hlsDir;
 
   try {
+    // Intercept address-in-use and access errors on RTMP/HLS ports to prevent server crashing
+    const handlePortErrors = (err) => {
+      if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
+        logger.warn(`Port binding issue on RTMP/HLS server: ${err.message}. Deactivating live RTMP services safely. Uploads and HLS playback will continue working.`);
+        stopLiveServer();
+      } else {
+        logger.error(`Live stream server exception: ${err.message}`);
+      }
+    };
+    process.on('uncaughtException', handlePortErrors);
+
     nms = new NodeMediaServer(config);
     nms.run();
     logger.info('Live RTMP streaming media server listening on port 1935, HLS on port 8000.');
@@ -45,7 +61,7 @@ function startLiveServer() {
       logger.info(`Stream publication initiated: ${streamPath} (Session ID: ${id})`);
       // streamPath looks like "/live/stream_xyz"
       const streamId = streamPath.split('/').pop();
-      const host = process.env.SERVER_HOST_URL || `http://localhost:5000`;
+      const host = process.env.SERVER_HOST_URL || `https://stream-streamplay.up.railway.app`;
       const streamHlsUrl = `${host}/uploads/live/${streamId}/index.m3u8`;
 
       try {

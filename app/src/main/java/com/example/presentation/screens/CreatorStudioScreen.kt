@@ -31,6 +31,7 @@ fun CreatorStudioScreen(
 ) {
     val uploadedVideos by viewModel.uploadedVideos.collectAsState()
     val uploadState by viewModel.studioUploadingState.collectAsState()
+    val uploadProgress by viewModel.uploadProgress.collectAsState()
 
     var showUploadDialog by remember { mutableStateOf(false) }
     var inputTitle by remember { mutableStateOf("") }
@@ -104,13 +105,13 @@ fun CreatorStudioScreen(
                         )
                         Column {
                             Text(
-                                text = if (uploadState == "uploading") "Uploading simulated chunks..." else "Transcoding HLS adaptive bitrate streams...",
+                                text = if (uploadState == "uploading") "Uploading video chunks ($uploadProgress%)..." else if (uploadState == "done") "Upload completed successfully!" else if (uploadState == "error") "Upload failed!" else "Transcoding HLS adaptive bitrate streams...",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                "Using FFmpeg multi-resolution video queue",
+                                text = if (uploadState == "uploading") "Sending binary payload via HTTP multipart stream" else "FFmpeg multi-resolution video transcoding queue active",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                             )

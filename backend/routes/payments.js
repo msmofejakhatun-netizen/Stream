@@ -19,7 +19,7 @@ router.post('/checkout', authenticateToken, async (req, res) => {
     logger.warn('Stripe checkout requested but STRIPE_SECRET_KEY is not configured. Serving fallback success mock URL.');
     // Under development/unconfigured environment, return a custom successful fallback mockup route
     return res.json({
-      url: `${process.env.SERVER_HOST_URL || 'http://localhost:5000'}/api/payments/sandbox-payment-success?userId=${userId}`
+      url: `${process.env.SERVER_HOST_URL || 'https://stream-streamplay.up.railway.app'}/api/payments/sandbox-payment-success?userId=${userId}`
     });
   }
 
