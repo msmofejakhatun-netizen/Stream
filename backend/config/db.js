@@ -97,11 +97,133 @@ async function initDB() {
 
     // Create database indexes to optimize queries
     await client.query('CREATE INDEX IF NOT EXISTS idx_videos_is_short ON videos(is_short);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_videos_is_short ON videos(is_short);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_videos_category ON videos(category);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_videos_creator_id ON videos(creator_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_comments_video_id ON comments(video_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_video_likes_video_id ON video_likes(video_id);');
     await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id_creator_id ON subscriptions(user_id, creator_id);');
+
+    // Alter users table to support admin, ban, verified, premium
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT \'User\';');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE;');
+
+    // Alter videos table to support published/unpublished, featured, trending, scheduled_time, pinned
+    await client.query('ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT TRUE;');
+    await client.query('ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;');
+    await client.query('ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_trending BOOLEAN DEFAULT FALSE;');
+    await client.query('ALTER TABLE videos ADD COLUMN IF NOT EXISTS scheduled_time VARCHAR(100);');
+    await client.query('ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;');
+
+    // Create categories table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        genre VARCHAR(100) DEFAULT 'General',
+        language VARCHAR(100) DEFAULT 'English'
+      );
+    `);
+
+    // Create banners table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS banners (
+        id VARCHAR(100) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        image_url TEXT NOT NULL,
+        type VARCHAR(50) NOT NULL, -- 'home', 'shorts', 'splash', 'carousel'
+        target_video_id VARCHAR(100),
+        is_active BOOLEAN DEFAULT TRUE
+      );
+    `);
+
+    // Create app_settings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+
+    // Create audit_logs table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id VARCHAR(100) PRIMARY KEY,
+        user_id VARCHAR(100),
+        action VARCHAR(255) NOT NULL,
+        details TEXT,
+        ip_address VARCHAR(50),
+        timestamp VARCHAR(100) DEFAULT 'Just now'
+      );
+    `);
+
+    // Create monetization_settings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS monetization_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+
+    // Create notifications table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR(100) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(50) DEFAULT 'broadcast', -- 'broadcast', 'push', 'scheduled'
+        target_user_id VARCHAR(100),
+        scheduled_time VARCHAR(100),
+        is_sent BOOLEAN DEFAULT FALSE,
+        created_at VARCHAR(100)
+      );
+    `);
+
+    // Seed default categories if none exist
+    const catCheck = await client.query('SELECT COUNT(*) FROM categories');
+    if (parseInt(catCheck.rows[0].count) === 0) {
+      const defaultCategories = [
+        { id: 'cat_edu', name: 'Education', genre: 'Tech', language: 'English' },
+        { id: 'cat_mus', name: 'Music', genre: 'Lofi', language: 'English' },
+        { id: 'cat_ent', name: 'Entertainment', genre: 'Comedy', language: 'English' },
+        { id: 'cat_tech', name: 'Technology', genre: 'Coding', language: 'English' }
+      ];
+      for (const cat of defaultCategories) {
+        await client.query('INSERT INTO categories (id, name, genre, language) VALUES ($1, $2, $3, $4)', [cat.id, cat.name, cat.genre, cat.language]);
+      }
+    }
+
+    // Seed default settings if none exist
+    const settingsCheck = await client.query('SELECT COUNT(*) FROM app_settings');
+    if (parseInt(settingsCheck.rows[0].count) === 0) {
+      await client.query("INSERT INTO app_settings (key, value) VALUES ('app_name', 'StreamPlay OTT')");
+      await client.query("INSERT INTO app_settings (key, value) VALUES ('logo_url', 'https://pub-streamplay.r2.dev/logo.png')");
+      await client.query("INSERT INTO app_settings (key, value) VALUES ('privacy_policy', 'Our Privacy Policy handles your personal data with care.')");
+      await client.query("INSERT INTO app_settings (key, value) VALUES ('terms_conditions', 'Terms of Service governs use of the StreamPlay application.')");
+      await client.query("INSERT INTO app_settings (key, value) VALUES ('maintenance_mode', 'false')");
+    }
+
+    // Seed default monetization settings if none exist
+    const monCheck = await client.query('SELECT COUNT(*) FROM monetization_settings');
+    if (parseInt(monCheck.rows[0].count) === 0) {
+      await client.query("INSERT INTO monetization_settings (key, value) VALUES ('admob_app_id', 'ca-app-pub-3940256099942544~3347511713')");
+      await client.query("INSERT INTO monetization_settings (key, value) VALUES ('google_ima_enabled', 'true')");
+      await client.query("INSERT INTO monetization_settings (key, value) VALUES ('vast_ads_url', 'https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319075/external/single_ad_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ct%3Dlinear&correlator=')");
+    }
+
+    // Seed Super Admin if none exists
+    const adminCheck = await client.query("SELECT COUNT(*) FROM users WHERE email = 'admin@streamplay.com'");
+    if (parseInt(adminCheck.rows[0].count) === 0) {
+      const bcrypt = require('bcryptjs');
+      const hash = await bcrypt.hash('admin123', 10);
+      await client.query(`
+        INSERT INTO users (id, email, password_hash, display_name, avatar_url, is_guest, joined_date, subscribers_count, role)
+        VALUES ('u_admin', 'admin@streamplay.com', $1, 'Super Admin', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80', false, 'Jul 2026', 0, 'SuperAdmin')
+      `, [hash]);
+      console.log('Super Admin user seeded successfully! (admin@streamplay.com / admin123)');
+    }
 
     // Seed data if no videos exist
     const { rows } = await client.query('SELECT COUNT(*) FROM videos');

@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamPlay Admin Hub</title>
+  
+  <!-- CSS Tailwind & Google Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind Custom Configuration -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              primary: '#FF2A54',    // StreamPlay Red/Neon Pink
+              secondary: '#1A1D29',  // Deep Slate/Blue Gray
+              accent: '#00F2FE',     // Neon Cyan
+              purple: '#7928CA',     // Glass Purple
+              card: 'rgba(26, 29, 41, 0.65)',
+            }
+          },
+          boxShadow: {
+            'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+            'neon-red': '0 0 15px rgba(255, 42, 84, 0.4)',
+            'neon-cyan': '0 0 15px rgba(0, 242, 254, 0.4)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background: radial-gradient(125% 125% at 50% 10%, #0c0d14 40%, #1f0813 80%, #05141d 100%);
+      min-height: 100vh;
+      color: #F3F4F6;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow-x: hidden;
+    }
+    .glass-panel {
+      background: rgba(22, 24, 37, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .glass-input {
+      background: rgba(10, 11, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    .glass-input:focus {
+      border-color: #FF2A54;
+      box-shadow: 0 0 10px rgba(255, 42, 84, 0.2);
+      outline: none;
+    }
+    /* Scrollbar Style */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 42, 84, 0.4);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 42, 84, 0.7);
+    }
+  </style>
+
+  <!-- React 18, ReactDOM 18 & Babel via CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Chart.js for Gorgeous Analytics Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div id="root"></div>
+
+  <!-- React Application Core Logic -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    function App() {
+      // 1. Session & Auth State
+      const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
+      const [user, setUser] = useState(JSON.parse(localStorage.getItem('admin_user')) || null);
+      
+      // 2. Navigation State
+      const [activeTab, setActiveTab] = useState('dashboard');
+      
+      // 3. UI Control States
+      const [loading, setLoading] = useState(false);
+      const [alert, setAlert] = useState(null);
+
+      // 4. Data states
+      const [dashboardData, setDashboardData] = useState(null);
+      const [videos, setVideos] = useState([]);
+      const [totalVideos, setTotalVideos] = useState(0);
+      const [videoPage, setVideoPage] = useState(1);
+      const [videoSearch, setVideoSearch] = useState('');
+      const [videoFilterShort, setVideoFilterShort] = useState('all');
+      
+      const [categories, setCategories] = useState([]);
+      const [users, setUsers] = useState([]);
+      const [totalUsers, setTotalUsers] = useState(0);
+      const [userPage, setUserPage] = useState(1);
+      const [userSearch, setUserSearch] = useState('');
+      
+      const [comments, setComments] = useState([]);
+      const [r2Files, setR2Files] = useState([]);
+      const [banners, setBanners] = useState([]);
+      const [notifications, setNotifications] = useState([]);
+      const [auditLogs, setAuditLogs] = useState([]);
+      const [appSettings, setAppSettings] = useState({});
+      const [monetization, setMonetization] = useState({});
+
+      // Modals and form payloads
+      const [showMediaModal, setShowMediaModal] = useState(false);
+      const [editingMedia, setEditingMedia] = useState(null);
+      const [mediaForm, setMediaForm] = useState({
+        title: '', description: '', videoUrl: '', thumbnailUrl: '',
+        category: 'Education', duration: '03:15', isShort: false,
+        isFeatured: false, isTrending: false, isPublished: true, scheduledTime: ''
+      });
+
+      const [showCatModal, setShowCatModal] = useState(false);
+      const [catForm, setCatForm] = useState({ id: '', name: '', genre: 'General', language: 'English' });
+
+      const [showBannerModal, setShowBannerModal] = useState(false);
+      const [bannerForm, setBannerForm] = useState({ title: '', imageUrl: '', type: 'carousel', targetVideoId: '' });
+
+      const [notifForm, setNotifForm] = useState({ title: '', message: '', type: 'broadcast', targetUserId: '', scheduledTime: '' });
+
+      const [r2UploadFile, setR2UploadFile] = useState(null);
+      const [previewAsset, setPreviewAsset] = useState(null); // URL of R2 file to preview
+
+      // Refs for Charts
+      const viewsChartRef = useRef(null);
+      const viewsChartInstance = useRef(null);
+
+      // Auto Alert Clear
+      const triggerAlert = (type, message) => {
+        setAlert({ type, message });
+        setTimeout(() => setAlert(null), 5000);
+      };
+
+      // Headers Builder
+      const getHeaders = () => ({
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      });
+
+      // API Caller Helper
+      const apiCall = async (url, method = 'GET', body = null, isMultipart = false) => {
+        setLoading(true);
+        try {
+          const options = { method };
+          if (isMultipart) {
+            options.body = body;
+            options.headers = { 'Authorization': `Bearer ${token}` };
+          } else {
+            options.headers = getHeaders();
+            if (body) options.body = JSON.stringify(body);
+          }
+
+          const res = await fetch(url, options);
+          const data = await res.json();
+          
+          if (!res.ok) {
+            if (res.status === 401 || res.status === 403) {
+              logout();
+              throw new Error(data.error || 'Session expired or privileges revoked.');
+            }
+            throw new Error(data.error || 'Server request failed');
+          }
+          setLoading(false);
+          return data;
+        } catch (err) {
+          setLoading(false);
+          triggerAlert('error', err.message);
+          throw err;
+        }
+      };
+
+      // Auth Handlers
+      const login = async (email, password) => {
+        try {
+          const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Login failed');
+          
+          localStorage.setItem('admin_token', data.token);
+          localStorage.setItem('admin_user', JSON.stringify(data.user));
+          setToken(data.token);
+          setUser(data.user);
+          triggerAlert('success', `Welcome back, ${data.user.displayName}!`);
+        } catch (err) {
+          triggerAlert('error', err.message);
+        }
+      };
+
+      const logout = () => {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+        setToken('');
+        setUser(null);
+      };
+
+      // Loaders
+      const loadDashboard = async () => {
+        const data = await apiCall('/api/admin/dashboard');
+        if (data) {
+          setDashboardData(data);
+          drawCharts(data.charts);
+        }
+      };
+
+      const loadVideos = async () => {
+        let url = `/api/admin/videos?page=${videoPage}&limit=10&search=${videoSearch}`;
+        if (videoFilterShort !== 'all') url += `&is_short=${videoFilterShort === 'shorts'}`;
+        const data = await apiCall(url);
+        if (data) {
+          setVideos(data.videos);
+          setTotalVideos(data.total);
+        }
+      };
+
+      const loadCategories = async () => {
+        const data = await apiCall('/api/admin/categories');
+        if (data) setCategories(data);
+      };
+
+      const loadUsers = async () => {
+        const data = await apiCall(`/api/admin/users?page=${userPage}&limit=10&search=${userSearch}`);
+        if (data) {
+          setUsers(data.users);
+          setTotalUsers(data.total);
+        }
+      };
+
+      const loadComments = async () => {
+        const data = await apiCall('/api/admin/comments');
+        if (data) setComments(data);
+      };
+
+      const loadR2Files = async () => {
+        const data = await apiCall('/api/admin/r2/files');
+        if (data) setR2Files(data);
+      };
+
+      const loadBanners = async () => {
+        const data = await apiCall('/api/admin/banners');
+        if (data) setBanners(data);
+      };
+
+      const loadNotifications = async () => {
+        const data = await apiCall('/api/admin/notifications');
+        if (data) setNotifications(data);
+      };
+
+      const loadAuditLogs = async () => {
+        const data = await apiCall('/api/admin/audit-logs');
+        if (data) setAuditLogs(data.logs);
+      };
+
+      const loadSettings = async () => {
+        const appS = await apiCall('/api/admin/settings');
+        const monS = await apiCall('/api/admin/monetization');
+        if (appS) setAppSettings(appS);
+        if (monS) setMonetization(monS);
+      };
+
+      // Draw dashboard visual graphs using chart.js
+      const drawCharts = (chartData) => {
+        if (!viewsChartRef.current) return;
+        
+        if (viewsChartInstance.current) {
+          viewsChartInstance.current.destroy();
+        }
+
+        const ctx = viewsChartRef.current.getContext('2d');
+        
+        // Custom neon gradients
+        const regGradient = ctx.createLinearGradient(0, 0, 0, 300);
+        regGradient.addColorStop(0, 'rgba(255, 42, 84, 0.4)');
+        regGradient.addColorStop(1, 'rgba(255, 42, 84, 0.01)');
+
+        const viewGradient = ctx.createLinearGradient(0, 0, 0, 300);
+        viewGradient.addColorStop(0, 'rgba(0, 242, 254, 0.4)');
+        viewGradient.addColorStop(1, 'rgba(0, 242, 254, 0.01)');
+
+        viewsChartInstance.current = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: chartData.labels,
+            datasets: [
+              {
+                label: 'OTT Streams & Views',
+                data: chartData.views,
+                borderColor: '#00F2FE',
+                backgroundColor: viewGradient,
+                fill: true,
+                tension: 0.4,
+                borderWidth: 3,
+                pointBackgroundColor: '#00F2FE',
+              },
+              {
+                label: 'New Member Registrations',
+                data: chartData.registrations.map(r => r * 150), // visual scaling factor
+                borderColor: '#FF2A54',
+                backgroundColor: regGradient,
+                fill: true,
+                tension: 0.4,
+                borderWidth: 3,
+                pointBackgroundColor: '#FF2A54',
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: '#D1D5DB', font: { family: 'Plus Jakarta Sans' } }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: { color: '#9CA3AF' }
+              },
+              y: {
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: { color: '#9CA3AF' }
+              }
+            }
+          }
+        });
+      };
+
+      // Lifecycle hooks to refresh pages on tab changes
+      useEffect(() => {
+        if (!token) return;
+        
+        if (activeTab === 'dashboard') loadDashboard();
+        else if (activeTab === 'videos') { loadVideos(); loadCategories(); }
+        else if (activeTab === 'categories') loadCategories();
+        else if (activeTab === 'users') loadUsers();
+        else if (activeTab === 'comments') loadComments();
+        else if (activeTab === 'r2') loadR2Files();
+        else if (activeTab === 'banners') loadBanners();
+        else if (activeTab === 'notifications') loadNotifications();
+        else if (activeTab === 'settings') loadSettings();
+        else if (activeTab === 'security') loadAuditLogs();
+        
+        // Trigger icons refresh
+        setTimeout(() => lucide.createIcons(), 200);
+      }, [token, activeTab, videoPage, videoSearch, videoFilterShort, userPage, userSearch]);
+
+      // Handle Media Add/Edit Actions
+      const handleSaveMedia = async (e) => {
+        e.preventDefault();
+        try {
+          if (editingMedia) {
+            await apiCall(`/api/admin/videos/${editingMedia.id}`, 'PUT', mediaForm);
+            triggerAlert('success', 'Media updated successfully!');
+          } else {
+            await apiCall('/api/admin/videos', 'POST', mediaForm);
+            triggerAlert('success', 'New media published successfully!');
+          }
+          setShowMediaModal(false);
+          setEditingMedia(null);
+          loadVideos();
+        } catch (err) {}
+      };
+
+      const handleEditMedia = (video) => {
+        setEditingMedia(video);
+        setMediaForm({
+          title: video.title,
+          description: video.description || '',
+          videoUrl: video.video_url,
+          thumbnailUrl: video.thumbnail_url,
+          category: video.category,
+          duration: video.duration,
+          isShort: video.is_short,
+          isFeatured: video.is_featured,
+          isTrending: video.is_trending,
+          isPublished: video.is_published,
+          scheduledTime: video.scheduled_time || ''
+        });
+        setShowMediaModal(true);
+      };
+
+      const handleDeleteMedia = async (id) => {
+        if (!confirm('Are you absolutely sure you want to permanently delete this video?')) return;
+        try {
+          await apiCall(`/api/admin/videos/${id}`, 'DELETE');
+          triggerAlert('success', 'Video deleted successfully');
+          loadVideos();
+        } catch (err) {}
+      };
+
+      // Categories Helpers
+      const handleSaveCategory = async (e) => {
+        e.preventDefault();
+        try {
+          if (catForm.id) {
+            await apiCall(`/api/admin/categories/${catForm.id}`, 'PUT', catForm);
+            triggerAlert('success', 'Category updated successfully');
+          } else {
+            await apiCall('/api/admin/categories', 'POST', catForm);
+            triggerAlert('success', 'Category added successfully');
+          }
+          setShowCatModal(false);
+          loadCategories();
+        } catch (err) {}
+      };
+
+      const handleDeleteCategory = async (id) => {
+        if (!confirm('Delete this category?')) return;
+        try {
+          await apiCall(`/api/admin/categories/${id}`, 'DELETE');
+          triggerAlert('success', 'Category deleted');
+          loadCategories();
+        } catch (err) {}
+      };
+
+      // Users flags toggles (Ban, Verify, Premium, Change Role)
+      const handleUpdateUserFlag = async (userId, flags) => {
+        try {
+          await apiCall(`/api/admin/users/${userId}`, 'PUT', flags);
+          triggerAlert('success', 'User status updated successfully');
+          loadUsers();
+        } catch (err) {}
+      };
+
+      // Comments Actions
+      const handleApproveComment = async (id) => {
+        try {
+          await apiCall(`/api/admin/comments/${id}/approve`, 'PUT');
+          triggerAlert('success', 'Comment approved & flagged states cleared');
+          loadComments();
+        } catch (err) {}
+      };
+
+      const handleDeleteComment = async (id) => {
+        if (!confirm('Delete comment?')) return;
+        try {
+          await apiCall(`/api/admin/comments/${id}`, 'DELETE');
+          triggerAlert('success', 'Comment deleted');
+          loadComments();
+        } catch (err) {}
+      };
+
+      // Cloudflare R2 direct uploads
+      const handleR2Upload = async (e) => {
+        e.preventDefault();
+        if (!r2UploadFile) return;
+        const formData = new FormData();
+        formData.append('file', r2UploadFile);
+
+        try {
+          await apiCall('/api/admin/r2/upload', 'POST', formData, true);
+          triggerAlert('success', 'Uploaded to Cloudflare R2 successfully!');
+          setR2UploadFile(null);
+          loadR2Files();
+        } catch (err) {}
+      };
+
+      const handleR2Delete = async (key) => {
+        if (!confirm(`Delete key ${key} permanently from Cloudflare R2?`)) return;
+        try {
+          await apiCall(`/api/admin/r2/delete?key=${encodeURIComponent(key)}`, 'DELETE');
+          triggerAlert('success', 'Object deleted from R2');
+          loadR2Files();
+        } catch (err) {}
+      };
+
+      // Banners
+      const handleSaveBanner = async (e) => {
+        e.preventDefault();
+        try {
+          await apiCall('/api/admin/banners', 'POST', bannerForm);
+          triggerAlert('success', 'Banner published');
+          setShowBannerModal(false);
+          loadBanners();
+        } catch (err) {}
+      };
+
+      const handleDeleteBanner = async (id) => {
+        if (!confirm('Delete banner?')) return;
+        try {
+          await apiCall(`/api/admin/banners/${id}`, 'DELETE');
+          triggerAlert('success', 'Banner deleted');
+          loadBanners();
+        } catch (err) {}
+      };
+
+      // Notifications
+      const handleSendNotification = async (e) => {
+        e.preventDefault();
+        try {
+          await apiCall('/api/admin/notifications', 'POST', notifForm);
+          triggerAlert('success', 'Notification dispatched successfully');
+          setNotifForm({ title: '', message: '', type: 'broadcast', targetUserId: '', scheduledTime: '' });
+          loadNotifications();
+        } catch (err) {}
+      };
+
+      // Settings updates
+      const handleSaveGlobalSettings = async (e) => {
+        e.preventDefault();
+        try {
+          await apiCall('/api/admin/settings', 'POST', appSettings);
+          triggerAlert('success', 'Global app parameters updated');
+        } catch (err) {}
+      };
+
+      const handleSaveMonSettings = async (e) => {
+        e.preventDefault();
+        try {
+          await apiCall('/api/admin/monetization', 'POST', monetization);
+          triggerAlert('success', 'AdMob and monetization parameters updated');
+        } catch (err) {}
+      };
+
+      // Initialize icons on mount
+      useEffect(() => {
+        lucide.createIcons();
+      }, []);
+
+      // LOGIN CONTAINER IF UNAUTHENTICATED
+      if (!token) {
+        return (
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="w-full max-w-md glass-panel p-8 rounded-3xl shadow-glass border border-white/10 text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-32 h-32 bg-brand-primary/20 rounded-full blur-2xl"></div>
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-brand-accent/20 rounded-full blur-2xl"></div>
+              
+              <div className="relative z-10">
+                <div className="w-16 h-16 bg-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-neon-red">
+                  <i data-lucide="play" className="text-white w-8 h-8 fill-white"></i>
+                </div>
+                <h1 className="text-3xl font-extrabold text-white mb-2 tracking-tight">StreamPlay Admin</h1>
+                <p className="text-gray-400 mb-8 text-sm">Sign in to access your secure media dashboard</p>
+
+                {alert && (
+                  <div className={`p-4 mb-6 rounded-2xl text-sm ${alert.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>
+                    {alert.message}
+                  </div>
+                )}
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  login(e.target.email.value, e.target.password.value);
+                }} className="space-y-4 text-left">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Secure Email</label>
+                    <input name="email" type="email" placeholder="admin@streamplay.com" required className="w-full px-4 py-3 rounded-2xl glass-input text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Password</label>
+                    <input name="password" type="password" placeholder="••••••••" required className="w-full px-4 py-3 rounded-2xl glass-input text-sm" />
+                  </div>
+                  <button type="submit" className="w-full mt-4 py-3.5 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-2xl transition duration-300 shadow-neon-red text-sm">
+                    Authenticate Administrator
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex h-screen overflow-hidden">
+          {/* SIDEBAR NAVIGATION */}
+          <aside className="w-72 bg-brand-secondary/90 border-r border-white/5 flex flex-col justify-between overflow-y-auto hidden md:flex">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center">
+                  <i data-lucide="play" className="text-white w-5 h-5 fill-white"></i>
+                </div>
+                <div>
+                  <h2 className="font-extrabold text-white text-md tracking-tight">StreamPlay Hub</h2>
+                  <span className="text-xs text-brand-accent font-mono font-bold tracking-wider">{user ? user.role : 'Admin'}</span>
+                </div>
+              </div>
+
+              <nav className="space-y-1">
+                {[
+                  { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
+                  { id: 'videos', label: 'Video Catalog', icon: 'clapperboard' },
+                  { id: 'categories', label: 'Genres & Langs', icon: 'tags' },
+                  { id: 'users', label: 'User Index', icon: 'users' },
+                  { id: 'comments', label: 'Moderation Queue', icon: 'message-square' },
+                  { id: 'r2', label: 'Cloudflare R2', icon: 'hard-drive' },
+                  { id: 'banners', label: 'Hero Banners', icon: 'image' },
+                  { id: 'notifications', label: 'Push Hub', icon: 'bell' },
+                  { id: 'settings', label: 'App Settings', icon: 'sliders' },
+                  { id: 'security', label: 'Security Logs', icon: 'shield-alert' },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold transition ${
+                      activeTab === item.id 
+                        ? 'bg-brand-primary text-white shadow-neon-red' 
+                        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    <i data-lucide={item.icon} className="w-5 h-5"></i>
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            <div className="p-6 border-t border-white/5 bg-black/25">
+              <div className="flex items-center gap-3 mb-4">
+                <img src={user ? user.avatarUrl : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80'} className="w-10 h-10 rounded-full border border-white/10" />
+                <div className="overflow-hidden">
+                  <h4 className="text-sm font-bold text-white truncate">{user ? user.displayName : 'Super Admin'}</h4>
+                  <p className="text-xs text-gray-500 truncate">{user ? user.email : ''}</p>
+                </div>
+              </div>
+              <button onClick={logout} className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 font-semibold rounded-xl text-xs transition border border-white/5 flex items-center justify-center gap-2">
+                <i data-lucide="log-out" className="w-4 h-4"></i> Sign Out
+              </button>
+            </div>
+          </aside>
+
+          {/* MAIN PAGE AREA */}
+          <main className="flex-1 flex flex-col overflow-hidden bg-black/10">
+            {/* ALERT NOTIFICATION TOAST */}
+            {alert && (
+              <div className="fixed top-6 right-6 z-50 animate-bounce">
+                <div className={`p-4 rounded-2xl shadow-2xl flex items-center gap-3 ${alert.type === 'error' ? 'bg-red-500 text-white shadow-red-500/30' : 'bg-green-500 text-white shadow-green-500/30'}`}>
+                  <i data-lucide={alert.type === 'error' ? 'alert-triangle' : 'check-circle'} className="w-5 h-5"></i>
+                  <span className="text-sm font-semibold">{alert.message}</span>
+                </div>
+              </div>
+            )}
+
+            {/* HEADER BAR */}
+            <header className="h-20 bg-brand-secondary/40 backdrop-blur-md border-b border-white/5 px-8 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <button className="md:hidden p-2 text-gray-400 hover:text-white" onClick={() => triggerAlert('info', 'Responsive sidebar is active. Expand desktop for maximum density view.')}>
+                  <i data-lucide="menu" className="w-6 h-6"></i>
+                </button>
+                <h1 className="text-xl font-bold text-white capitalize">{activeTab} Console</h1>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs font-semibold text-green-400">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  API Gateway Live
+                </span>
+                
+                {s3.isConfigured() ? (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-blue-400">
+                    R2 Storage Online
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-xs font-semibold text-orange-400">
+                    R2 Offline Mode
+                  </span>
+                )}
+              </div>
+            </header>
+
+            {/* PAGE CONTENT SWITCHER */}
+            <section className="flex-1 overflow-y-auto p-8 relative z-0">
+              {loading && (
+                <div className="absolute inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center z-50">
+                  <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+
+              {/* 1. DASHBOARD TAB */}
+              {activeTab === 'dashboard' && dashboardData && (
+                <div className="space-y-8 animate-fade-in">
+                  {/* Metric Cards Grid */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                    {[
+                      { label: 'Total Platform Views', value: dashboardData.metrics.totalViews.toLocaleString(), icon: 'eye', color: 'text-brand-accent', shadow: 'hover:shadow-neon-cyan' },
+                      { label: 'Total Users Index', value: dashboardData.metrics.totalUsers.toLocaleString(), icon: 'users', color: 'text-purple-400', shadow: 'hover:shadow-indigo-500/20' },
+                      { label: 'OTT Media Library', value: dashboardData.metrics.totalVideos.toLocaleString(), icon: 'clapperboard', color: 'text-brand-primary', shadow: 'hover:shadow-neon-red' },
+                      { label: 'Cloud Shorts Catalogs', value: dashboardData.metrics.totalShorts.toLocaleString(), icon: 'video', color: 'text-yellow-400', shadow: 'hover:shadow-yellow-500/20' },
+                    ].map((card, i) => (
+                      <div key={i} className={`glass-panel p-6 rounded-3xl transition duration-300 hover:-translate-y-1.5 cursor-pointer shadow-glass ${card.shadow}`}>
+                        <div className="flex justify-between items-start mb-4">
+                          <span className="text-gray-400 text-xs font-semibold tracking-wider uppercase">{card.label}</span>
+                          <i data-lucide={card.icon} className={`w-5 h-5 ${card.color}`}></i>
+                        </div>
+                        <h3 className="text-3xl font-extrabold text-white tracking-tight">{card.value}</h3>
+                        <div className="mt-2 text-xs text-green-400 flex items-center gap-1">
+                          <i data-lucide="trending-up" className="w-3.5 h-3.5"></i> +14.8% this week
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Advanced Analytics Grid (Revenue, R2 and Active Users) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="glass-panel p-6 rounded-3xl shadow-glass flex items-center justify-between">
+                      <div>
+                        <span className="text-gray-400 text-xs font-semibold tracking-wider uppercase block mb-1">R2 Storage Volume</span>
+                        <h4 className="text-2xl font-bold text-white">{dashboardData.metrics.storageUsageMB} MB</h4>
+                        <p className="text-xs text-gray-500 mt-1">Hosting HLS Segment Playlists</p>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400">
+                        <i data-lucide="hard-drive" className="w-6 h-6"></i>
+                      </div>
+                    </div>
+
+                    <div className="glass-panel p-6 rounded-3xl shadow-glass flex items-center justify-between">
+                      <div>
+                        <span className="text-gray-400 text-xs font-semibold tracking-wider uppercase block mb-1">Active Viewers Now</span>
+                        <h4 className="text-2xl font-bold text-brand-accent">{dashboardData.metrics.activeUsers} Live</h4>
+                        <p className="text-xs text-gray-500 mt-1">Streaming over Mobile WebSocket</p>
+                      </div>
+                      <div className="w-12 h-12 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center justify-center text-green-400">
+                        <span className="w-3.5 h-3.5 rounded-full bg-green-500 animate-ping absolute"></span>
+                        <i data-lucide="activity" className="w-6 h-6 relative"></i>
+                      </div>
+                    </div>
+
+                    <div className="glass-panel p-6 rounded-3xl shadow-glass flex items-center justify-between">
+                      <div>
+                        <span className="text-gray-400 text-xs font-semibold tracking-wider uppercase block mb-1">Estimated Monthly Revenue</span>
+                        <h4 className="text-2xl font-bold text-brand-primary">${dashboardData.metrics.estimatedRevenue.toFixed(2)}</h4>
+                        <p className="text-xs text-gray-500 mt-1">Calculated from Premium Pass Members</p>
+                      </div>
+                      <div className="w-12 h-12 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl flex items-center justify-center text-brand-primary">
+                        <i data-lucide="dollar-sign" className="w-6 h-6"></i>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Primary Trend Charts */}
+                  <div className="glass-panel p-6 rounded-3xl shadow-glass">
+                    <h3 className="font-extrabold text-white text-lg mb-6">Traffic & Engagement Trends</h3>
+                    <div className="h-[320px]">
+                      <canvas ref={viewsChartRef}></canvas>
+                    </div>
+                  </div>
+
+                  {/* Audit Logs Quickview */}
+                  <div className="glass-panel p-6 rounded-3xl shadow-glass">
+                    <h3 className="font-extrabold text-white text-lg mb-4">Recent Server Audits</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-gray-400">
+                        <thead className="text-xs uppercase text-gray-400 border-b border-white/5 font-mono">
+                          <tr>
+                            <th className="py-3">Action</th>
+                            <th className="py-3">Details</th>
+                            <th className="py-3">Client IP</th>
+                            <th className="py-3">Timestamp</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {dashboardData.recentLogs.map((log, index) => (
+                            <tr key={index} className="hover:bg-white/5 transition">
+                              <td className="py-4 font-bold text-brand-primary">{log.action}</td>
+                              <td className="py-4 text-xs font-mono">{log.details}</td>
+                              <td className="py-4 font-mono">{log.ip_address}</td>
+                              <td className="py-4 text-xs">{log.timestamp}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. VIDEOS & SHORTS CATALOG TAB */}
+              {activeTab === 'videos' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    {/* Search & filters */}
+                    <div className="flex flex-wrap items-center gap-3 flex-1">
+                      <input 
+                        type="text" 
+                        placeholder="Search media..." 
+                        value={videoSearch}
+                        onChange={(e) => { setVideoSearch(e.target.value); setVideoPage(1); }}
+                        className="px-4 py-2.5 rounded-2xl glass-input text-sm flex-1 max-w-xs" 
+                      />
+                      <select 
+                        value={videoFilterShort}
+                        onChange={(e) => { setVideoFilterShort(e.target.value); setVideoPage(1); }}
+                        className="px-4 py-2.5 rounded-2xl glass-input text-sm"
+                      >
+                        <option value="all">All Channels</option>
+                        <option value="long">OTT Videos</option>
+                        <option value="shorts">Cloud Shorts</option>
+                      </select>
+                    </div>
+
+                    <button 
+                      onClick={() => { setEditingMedia(null); setMediaForm({ title: '', description: '', videoUrl: '', thumbnailUrl: '', category: 'Education', duration: '03:15', isShort: false, isFeatured: false, isTrending: false, isPublished: true, scheduledTime: '' }); setShowMediaModal(true); }}
+                      className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-2xl transition shadow-neon-red text-sm flex items-center gap-2"
+                    >
+                      <i data-lucide="plus" className="w-4 h-4"></i> Add Media Content
+                    </button>
+                  </div>
+
+                  <div className="glass-panel rounded-3xl shadow-glass overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-gray-400">
+                        <thead className="text-xs uppercase text-gray-400 border-b border-white/5 font-mono">
+                          <tr>
+                            <th className="p-4">Media</th>
+                            <th className="p-4">Category</th>
+                            <th className="p-4">Type</th>
+                            <th className="p-4">Views / Likes</th>
+                            <th className="p-4">State</th>
+                            <th className="p-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {videos.map(video => (
+                            <tr key={video.id} className="hover:bg-white/5 transition">
+                              <td className="p-4 flex gap-3.5 items-center">
+                                <img src={video.thumbnail_url} className="w-16 h-10 object-cover rounded-lg border border-white/10" />
+                                <div>
+                                  <h4 className="font-bold text-white text-sm line-clamp-1">{video.title}</h4>
+                                  <span className="text-xs text-gray-500 font-mono">{video.id} ({video.duration})</span>
+                                </div>
+                              </td>
+                              <td className="p-4 text-xs font-semibold">{video.category}</td>
+                              <td className="p-4">
+                                {video.is_short ? (
+                                  <span className="px-2 py-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-full text-[10px] font-bold uppercase">Short</span>
+                                ) : (
+                                  <span className="px-2 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-[10px] font-bold uppercase">Video</span>
+                                )}
+                              </td>
+                              <td className="p-4 font-mono text-xs text-gray-300">
+                                {parseInt(video.views).toLocaleString()} views<br />{parseInt(video.likes).toLocaleString()} likes
+                              </td>
+                              <td className="p-4">
+                                <div className="flex flex-wrap gap-1">
+                                  {video.is_published ? (
+                                    <span className="px-1.5 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded text-[9px] uppercase">Published</span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 bg-gray-500/10 text-gray-400 border border-gray-500/20 rounded text-[9px] uppercase">Draft</span>
+                                  )}
+                                  {video.is_featured && <span className="px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded text-[9px] uppercase">Featured</span>}
+                                  {video.is_trending && <span className="px-1.5 py-0.5 bg-brand-accent/10 text-brand-accent border border-brand-accent/20 rounded text-[9px] uppercase">Trending</span>}
+                                  {video.is_pinned && <span className="px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[9px] uppercase">Pinned</span>}
+                                  {video.scheduled_time && <span className="px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded text-[9px] uppercase font-mono">Sched</span>}
+                                </div>
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button onClick={() => handleEditMedia(video)} className="p-2 bg-white/5 hover:bg-brand-accent/10 border border-white/5 hover:border-brand-accent/20 text-gray-400 hover:text-brand-accent rounded-lg transition" title="Edit Metadata">
+                                    <i data-lucide="edit-3" className="w-4 h-4"></i>
+                                  </button>
+                                  <button onClick={() => handleDeleteMedia(video.id)} className="p-2 bg-white/5 hover:bg-brand-primary/10 border border-white/5 hover:border-brand-primary/20 text-gray-400 hover:text-brand-primary rounded-lg transition" title="Permanently Delete">
+                                    <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    <div className="p-4 bg-black/10 border-t border-white/5 flex justify-between items-center text-sm">
+                      <span className="text-gray-500">Total records: {totalVideos}</span>
+                      <div className="flex gap-2">
+                        <button disabled={videoPage <= 1} onClick={() => setVideoPage(videoPage - 1)} className="px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-semibold border border-white/5 disabled:opacity-30">Previous</button>
+                        <button disabled={videoPage * 10 >= totalVideos} onClick={() => setVideoPage(videoPage + 1)} className="px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-semibold border border-white/5 disabled:opacity-30">Next</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. CATEGORIES/GENRE MANAGER TAB */}
+              {activeTab === 'categories' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex justify-between items-center">
+                    <p className="text-gray-400 text-sm">Organize OTT movies, learning genres, and localized display languages</p>
+                    <button 
+                      onClick={() => { setCatForm({ id: '', name: '', genre: 'General', language: 'English' }); setShowCatModal(true); }}
+                      className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-2xl transition shadow-neon-red text-sm flex items-center gap-2"
+                    >
+                      <i data-lucide="plus" className="w-4 h-4"></i> Add Category
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {categories.map(cat => (
+                      <div key={cat.id} className="glass-panel p-6 rounded-3xl relative overflow-hidden group shadow-glass">
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-brand-accent/5 rounded-full blur-xl group-hover:bg-brand-accent/10 transition"></div>
+                        <h4 className="font-extrabold text-white text-lg mb-2">{cat.name}</h4>
+                        <span className="text-xs text-gray-400 font-mono block mb-1">Genre: {cat.genre}</span>
+                        <span className="text-xs text-brand-accent font-mono block mb-6">Language: {cat.language}</span>
+
+                        <div className="flex justify-end gap-2 border-t border-white/5 pt-4">
+                          <button onClick={() => { setCatForm(cat); setShowCatModal(true); }} className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-gray-300">Edit</button>
+                          <button onClick={() => handleDeleteCategory(cat.id)} className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white rounded-xl text-xs font-bold transition">Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. USER MANAGER TAB */}
+              {activeTab === 'users' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex gap-4">
+                    <input 
+                      type="text" 
+                      placeholder="Search users..." 
+                      value={userSearch}
+                      onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
+                      className="px-4 py-2.5 rounded-2xl glass-input text-sm flex-1 max-w-xs" 
+                    />
+                  </div>
+
+                  <div className="glass-panel rounded-3xl shadow-glass overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-gray-400">
+                        <thead className="text-xs uppercase text-gray-400 border-b border-white/5 font-mono">
+                          <tr>
+                            <th className="p-4">User</th>
+                            <th className="p-4">Email</th>
+                            <th className="p-4">Role</th>
+                            <th className="p-4">Verification Badges</th>
+                            <th className="p-4 text-right">Moderator actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {users.map(u => (
+                            <tr key={u.id} className="hover:bg-white/5 transition">
+                              <td className="p-4 flex gap-3.5 items-center">
+                                <img src={u.avatarUrl} className="w-10 h-10 rounded-full border border-white/10" />
+                                <div>
+                                  <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                                    {u.displayName}
+                                    {u.isVerified && <i data-lucide="badge-check" className="w-4 h-4 text-blue-400 fill-blue-400/10"></i>}
+                                    {u.isPremium && <i data-lucide="crown" className="w-4 h-4 text-yellow-400 fill-yellow-400/10"></i>}
+                                  </h4>
+                                  <span className="text-xs text-gray-500 font-mono">{u.id}</span>
+                                </div>
+                              </td>
+                              <td className="p-4 text-xs font-mono">{u.email}</td>
+                              <td className="p-4">
+                                <select 
+                                  value={u.role}
+                                  onChange={(e) => handleUpdateUserFlag(u.id, { role: e.target.value })}
+                                  className="bg-black/45 border border-white/10 rounded-xl text-xs py-1 px-2.5 text-white"
+                                >
+                                  <option value="User">User</option>
+                                  <option value="Moderator">Moderator</option>
+                                  <option value="Admin">Admin</option>
+                                  <option value="SuperAdmin">SuperAdmin</option>
+                                </select>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => handleUpdateUserFlag(u.id, { isVerified: !u.isVerified })}
+                                    className={`px-3 py-1 rounded-xl text-xs font-bold border transition ${u.isVerified ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-white/5 border-white/5 text-gray-400'}`}
+                                  >
+                                    Creator Badge
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateUserFlag(u.id, { isPremium: !u.isPremium })}
+                                    className={`px-3 py-1 rounded-xl text-xs font-bold border transition ${u.isPremium ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' : 'bg-white/5 border-white/5 text-gray-400'}`}
+                                  >
+                                    Premium Badge
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="p-4 text-right">
+                                <button 
+                                  onClick={() => handleUpdateUserFlag(u.id, { isBanned: !u.isBanned })}
+                                  className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition ${u.isBanned ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}
+                                >
+                                  {u.isBanned ? 'Lift Ban' : 'Ban Account'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. MODERATION QUEUE TAB */}
+              {activeTab === 'comments' && (
+                <div className="space-y-6 animate-fade-in">
+                  <p className="text-gray-400 text-sm">Moderators can monitor comment activities, clear spam, and maintain clean streaming channels.</p>
+                  
+                  <div className="glass-panel rounded-3xl shadow-glass overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-gray-400">
+                        <thead className="text-xs uppercase text-gray-400 border-b border-white/5 font-mono">
+                          <tr>
+                            <th className="p-4">User</th>
+                            <th className="p-4">Content</th>
+                            <th className="p-4">Target video</th>
+                            <th className="p-4">AI Spam Rating</th>
+                            <th className="p-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {comments.map(comment => (
+                            <tr key={comment.id} className="hover:bg-white/5 transition">
+                              <td className="p-4 flex gap-3.5 items-center">
+                                <img src={comment.user_avatar} className="w-10 h-10 rounded-full border border-white/10" />
+                                <div>
+                                  <h4 className="font-bold text-white text-sm">{comment.user_name}</h4>
+                                  <span className="text-xs text-gray-500 font-mono">User ID: {comment.user_id}</span>
+                                </div>
+                              </td>
+                              <td className="p-4 text-sm text-gray-200">{comment.content}</td>
+                              <td className="p-4 text-xs font-semibold max-w-[200px] truncate">{comment.videoTitle || 'Unknown Video'}</td>
+                              <td className="p-4">
+                                {comment.isFlaggedSpam ? (
+                                  <span className="px-2 py-1 bg-red-500/10 text-red-400 border border-red-500/20 rounded-full text-[10px] font-bold uppercase flex items-center gap-1 w-max">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                    Spam ({comment.spamConfidence})
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-1 bg-green-500/10 text-green-400 border border-green-500/20 rounded-full text-[10px] font-bold uppercase flex items-center gap-1 w-max">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                    Approved
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button onClick={() => handleApproveComment(comment.id)} className="px-3 py-1 bg-green-500/10 hover:bg-green-500 border border-green-500/20 hover:border-transparent text-green-400 hover:text-white rounded-xl text-xs font-bold transition">
+                                    Approve / Clear
+                                  </button>
+                                  <button onClick={() => handleDeleteComment(comment.id)} className="px-3 py-1 bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-transparent text-red-400 hover:text-white rounded-xl text-xs font-bold transition">
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. CLOUDFLARE R2 BUCKET MANAGER TAB */}
+              {activeTab === 'r2' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Upload component */}
+                    <div className="glass-panel p-6 rounded-3xl shadow-glass h-fit">
+                      <h3 className="font-extrabold text-white text-lg mb-4">Direct Cloud Upload</h3>
+                      <form onSubmit={handleR2Upload} className="space-y-4">
+                        <div className="border border-dashed border-white/10 hover:border-brand-primary/40 rounded-2xl p-6 text-center cursor-pointer transition relative">
+                          <input 
+                            type="file" 
+                            onChange={(e) => setR2UploadFile(e.target.files[0])}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                          />
+                          <i data-lucide="cloud-upload" className="w-8 h-8 text-gray-500 mx-auto mb-2"></i>
+                          <p className="text-xs text-gray-400">{r2UploadFile ? r2UploadFile.name : 'Drag files here or click to select'}</p>
+                        </div>
+                        <button type="submit" className="w-full py-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-2xl transition shadow-neon-red text-sm">
+                          Publish Object To Cloudflare
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* R2 Directory Browser list */}
+                    <div className="lg:col-span-2 glass-panel p-6 rounded-3xl shadow-glass">
+                      <h3 className="font-extrabold text-white text-lg mb-4">Cloudflare Object Index</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-400">
+                          <thead className="text-xs uppercase text-gray-400 border-b border-white/5 font-mono">
+                            <tr>
+                              <th className="py-3">Object Key</th>
+                              <th className="py-3">Size</th>
+                              <th className="py-3 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5 font-mono text-xs">
+                            {r2Files.map((file, idx) => (
+                              <tr key={idx} className="hover:bg-white/5 transition">
+                                <td className="py-3.5 font-semibold text-gray-300 flex items-center gap-2">
+                                  {file.key.endsWith('.mp4') || file.key.endsWith('.m3u8') ? (
+                                    <i data-lucide="film" className="w-4 h-4 text-brand-accent"></i>
+                                  ) : (
+                                    <i data-lucide="image" className="w-4 h-4 text-purple-400"></i>
+                                  )}
+                                  <span className="truncate max-w-xs">{file.key}</span>
+                                </td>
+                                <td className="py-3.5">{(file.size / (1024 * 1024)).toFixed(2)} MB</td>
+                                <td className="py-3.5 text-right">
+                                  <div className="flex justify-end gap-1.5">
+                                    <button onClick={() => setPreviewAsset(file.url)} className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded border border-white/5 text-gray-300">Preview</button>
+                                    <button onClick={() => handleR2Delete(file.key)} className="px-2.5 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white rounded transition">Delete</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 7. BANNERS TAB */}
+              {activeTab === 'banners' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex justify-between items-center">
+                    <p className="text-gray-400 text-sm">Organize front-end banner advertisements, carousels, and visual splash promotions.</p>
+                    <button 
+                      onClick={() => setShowBannerModal(true)}
+                      className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-2xl transition shadow-neon-red text-sm flex items-center gap-2"
+                    >
+                      <i data-lucide="plus" className="w-4 h-4"></i> Add Banner Card
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {banners.map(banner => (
+                      <div key={banner.id} className="glass-panel rounded-3xl overflow-hidden shadow-glass relative group">
+                        <img src={banner.image_url} className="w-full h-44 object-cover border-b border-white/5" />
+                        <div className="p-6">
+                          <span className="px-2 py-0.5 bg-brand-accent/10 text-brand-accent border border-brand-accent/20 rounded-full text-[10px] font-bold uppercase tracking-wider block w-fit mb-2">{banner.type}</span>
+                          <h4 className="font-extrabold text-white text-lg mb-4 line-clamp-1">{banner.title}</h4>
+                          <div className="flex justify-between items-center text-xs text-gray-500 font-mono mb-4">
+                            <span>Link Video: {banner.target_video_id || 'None'}</span>
+                            <span>{banner.is_active ? 'Active' : 'Paused'}</span>
+                          </div>
+                          <button onClick={() => handleDeleteBanner(banner.id)} className="w-full py-2 bg-brand-primary/10 hover:bg-brand-primary hover:text-white text-brand-primary rounded-xl font-semibold text-xs transition">Delete Banner</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 8. PUSH NOTIFICATIONS HUB TAB */}
+              {activeTab === 'notifications' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+                  {/* Notification dispatcher */}
+                  <div className="glass-panel p-6 rounded-3xl shadow-glass h-fit">
+                    <h3 className="font-extrabold text-white text-lg mb-4">Push Broadcast Creator</h3>
+                    <form onSubmit={handleSendNotification} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Notification Title</label>
+                        <input 
+                          type="text" 
+                          value={notifForm.title} 
+                          onChange={(e) => setNotifForm({ ...notifForm, title: e.target.value })}
+                          placeholder="🎉 Exclusive Premiere Tonight!" required className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Body Message</label>
+                        <textarea 
+                          rows="4" 
+                          value={notifForm.message} 
+                          onChange={(e) => setNotifForm({ ...notifForm, message: e.target.value })}
+                          placeholder="Unlock stream-play premium pass in 4K resolution with double streak bonus beats..." required className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm"
+                        ></textarea>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Target Type</label>
+                          <select 
+                            value={notifForm.type} 
+                            onChange={(e) => setNotifForm({ ...notifForm, type: e.target.value })}
+                            className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm"
+                          >
+                            <option value="broadcast">Global Broadcast</option>
+                            <option value="push">Push Specific</option>
+                            <option value="scheduled">Schedule Later</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Scheduled time</label>
+                          <input 
+                            type="text" 
+                            value={notifForm.scheduledTime} 
+                            onChange={(e) => setNotifForm({ ...notifForm, scheduledTime: e.target.value })}
+                            placeholder="Tonight at 8PM" className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm" 
+                          />
+                        </div>
+                      </div>
+                      <button type="submit" className="w-full mt-4 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-2xl transition shadow-neon-red text-sm">
+                        Broadcast Notification
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Dispatch history */}
+                  <div className="lg:col-span-2 glass-panel p-6 rounded-3xl shadow-glass">
+                    <h3 className="font-extrabold text-white text-lg mb-4">Notification Dispatch History</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-gray-400">
+                        <thead className="text-xs uppercase text-gray-400 border-b border-white/5 font-mono">
+                          <tr>
+                            <th className="py-3">Notification</th>
+                            <th className="py-3">Type</th>
+                            <th className="py-3">Schedule Date</th>
+                            <th className="py-3 text-right">State</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 text-xs">
+                          {notifications.map(notif => (
+                            <tr key={notif.id} className="hover:bg-white/5 transition">
+                              <td className="py-3.5 pr-4">
+                                <h4 className="font-bold text-white text-sm mb-1">{notif.title}</h4>
+                                <p className="text-gray-400 line-clamp-1">{notif.message}</p>
+                              </td>
+                              <td className="py-3.5 font-semibold text-brand-accent capitalize">{notif.type}</td>
+                              <td className="py-3.5 font-mono text-gray-500">{notif.scheduled_time || 'Immediate'}</td>
+                              <td className="py-3.5 text-right">
+                                {notif.is_sent ? (
+                                  <span className="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded text-[9px] uppercase">Dispatched</span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded text-[9px] uppercase font-mono">Pending</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 9. GLOBAL APP & MONETIZATION SETTINGS TAB */}
+              {activeTab === 'settings' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+                  {/* Settings */}
+                  <div className="glass-panel p-6 rounded-3xl shadow-glass h-fit">
+                    <h3 className="font-extrabold text-white text-lg mb-4">Brand & Metadata Settings</h3>
+                    <form onSubmit={handleSaveGlobalSettings} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">OTT Platform Name</label>
+                        <input 
+                          type="text" 
+                          value={appSettings.app_name || ''} 
+                          onChange={(e) => setAppSettings({ ...appSettings, app_name: e.target.value })}
+                          required className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm font-bold" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Display Logo URL</label>
+                        <input 
+                          type="text" 
+                          value={appSettings.logo_url || ''} 
+                          onChange={(e) => setAppSettings({ ...appSettings, logo_url: e.target.value })}
+                          required className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm font-mono text-xs" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Privacy Policy Framework</label>
+                        <textarea 
+                          rows="3" 
+                          value={appSettings.privacy_policy || ''} 
+                          onChange={(e) => setAppSettings({ ...appSettings, privacy_policy: e.target.value })}
+                          required className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm"
+                        ></textarea>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Maintenance Mode</label>
+                        <select 
+                          value={appSettings.maintenance_mode || 'false'} 
+                          onChange={(e) => setAppSettings({ ...appSettings, maintenance_mode: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm font-semibold"
+                        >
+                          <option value="false">Off / Active Public Streaming</option>
+                          <option value="true">On / Closed maintenance screen</option>
+                        </select>
+                      </div>
+                      <button type="submit" className="w-full py-3.5 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-2xl transition shadow-neon-red text-sm">
+                        Apply Brand Adjustments
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Monetization */}
+                  <div className="glass-panel p-6 rounded-3xl shadow-glass h-fit">
+                    <h3 className="font-extrabold text-white text-lg mb-4">AdMob & Monetization Configuration</h3>
+                    <form onSubmit={handleSaveMonSettings} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">AdMob Application Identifier</label>
+                        <input 
+                          type="text" 
+                          value={monetization.admob_app_id || ''} 
+                          onChange={(e) => setMonetization({ ...monetization, admob_app_id: e.target.value })}
+                          required className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm font-mono text-xs" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Google IMA Integration Status</label>
+                        <select 
+                          value={monetization.google_ima_enabled || 'true'} 
+                          onChange={(e) => setMonetization({ ...monetization, google_ima_enabled: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm font-semibold"
+                        >
+                          <option value="true">Active Google IMA Wrapper</option>
+                          <option value="false">Disabled / Pure Premium Feed</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">VAST Ad Network URL</label>
+                        <input 
+                          type="text" 
+                          value={monetization.vast_ads_url || ''} 
+                          onChange={(e) => setMonetization({ ...monetization, vast_ads_url: e.target.value })}
+                          required className="w-full px-4 py-2.5 rounded-2xl glass-input text-sm font-mono text-xs" 
+                        />
+                      </div>
+                      <button type="submit" className="w-full py-3.5 bg-brand-accent text-brand-secondary hover:text-black font-extrabold rounded-2xl transition shadow-neon-cyan text-sm">
+                        Apply Monetization Parameters
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* 10. SECURITY LOGGER TAB */}
+              {activeTab === 'security' && (
+                <div className="space-y-6 animate-fade-in">
+                  <p className="text-gray-400 text-sm">A full audit record of critical system alterations, role changes, deleted content, and logged IPs.</p>
+                  
+                  <div className="glass-panel rounded-3xl shadow-glass overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-gray-400">
+                        <thead className="text-xs uppercase text-gray-400 border-b border-white/5 font-mono">
+                          <tr>
+                            <th className="p-4">User</th>
+                            <th className="p-4">Secure Log ID</th>
+                            <th className="p-4">Action</th>
+                            <th className="p-4">Change Log Details</th>
+                            <th className="p-4 font-mono">IP address</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 text-xs font-mono">
+                          {auditLogs.map(log => (
+                            <tr key={log.id} className="hover:bg-white/5 transition">
+                              <td className="p-4">
+                                <h4 className="font-bold text-white font-sans">{log.display_name || 'Admin ID'}</h4>
+                                <span className="text-xs text-gray-500 font-mono">{log.email || log.user_id}</span>
+                              </td>
+                              <td className="p-4 text-gray-500">{log.id}</td>
+                              <td className="p-4 font-bold text-brand-primary">{log.action}</td>
+                              <td className="p-4 max-w-[300px] truncate">{log.details}</td>
+                              <td className="p-4">{log.ip_address}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          </main>
+
+          {/* ======================================================== */}
+          {/* MODAL SYSTEM (Add / Edit Media) */}
+          {showMediaModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
+              <div className="w-full max-w-2xl glass-panel p-8 rounded-3xl shadow-glass border border-white/10 relative h-[85vh] overflow-y-auto">
+                <button onClick={() => setShowMediaModal(false)} className="absolute top-6 right-6 text-gray-400 hover:text-white">
+                  <i data-lucide="x" className="w-6 h-6"></i>
+                </button>
+                <h3 className="text-xl font-extrabold text-white mb-6">{editingMedia ? 'Modify Metadata' : 'Publish New Content'}</h3>
+                
+                <form onSubmit={handleSaveMedia} className="space-y-4 text-left text-sm text-gray-300">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Title</label>
+                      <input 
+                        type="text" 
+                        value={mediaForm.title} 
+                        onChange={(e) => setMediaForm({ ...mediaForm, title: e.target.value })}
+                        required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Category Channel</label>
+                      <select 
+                        value={mediaForm.category} 
+                        onChange={(e) => setMediaForm({ ...mediaForm, category: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm"
+                      >
+                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Description</label>
+                    <textarea 
+                      rows="3" 
+                      value={mediaForm.description} 
+                      onChange={(e) => setMediaForm({ ...mediaForm, description: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl glass-input text-sm"
+                    ></textarea>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Asset Media URL</label>
+                      <input 
+                        type="text" 
+                        value={mediaForm.videoUrl} 
+                        onChange={(e) => setMediaForm({ ...mediaForm, videoUrl: e.target.value })}
+                        required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-xs font-mono" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Thumbnail Vector URL</label>
+                      <input 
+                        type="text" 
+                        value={mediaForm.thumbnailUrl} 
+                        onChange={(e) => setMediaForm({ ...mediaForm, thumbnailUrl: e.target.value })}
+                        required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-xs font-mono" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Type Feed</label>
+                      <select 
+                        value={mediaForm.isShort ? 'short' : 'video'} 
+                        onChange={(e) => setMediaForm({ ...mediaForm, isShort: e.target.value === 'short' })}
+                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm"
+                      >
+                        <option value="video">Standard OTT video</option>
+                        <option value="short">Cloud Short</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Duration (00:00)</label>
+                      <input 
+                        type="text" 
+                        value={mediaForm.duration} 
+                        onChange={(e) => setMediaForm({ ...mediaForm, duration: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Schedule Time (Optional)</label>
+                      <input 
+                        type="text" 
+                        value={mediaForm.scheduledTime} 
+                        onChange={(e) => setMediaForm({ ...mediaForm, scheduledTime: e.target.value })}
+                        placeholder="Tonight 8PM" className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Settings toggles */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
+                    {[
+                      { key: 'isPublished', label: 'Published Feed' },
+                      { key: 'isFeatured', label: 'Feature Banner' },
+                      { key: 'isTrending', label: 'Trending Feed' },
+                    ].map(toggle => (
+                      <label key={toggle.key} className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={mediaForm[toggle.key]} 
+                          onChange={(e) => setMediaForm({ ...mediaForm, [toggle.key]: e.target.checked })}
+                          className="rounded border-white/10 text-brand-primary focus:ring-brand-primary" 
+                        />
+                        <span className="text-xs font-bold">{toggle.label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <button type="submit" className="w-full mt-6 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-xl transition shadow-neon-red">
+                    {editingMedia ? 'Publish Metadata' : 'Publish Content'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL SYSTEM (Add / Edit Category) */}
+          {showCatModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
+              <div className="w-full max-w-md glass-panel p-8 rounded-3xl shadow-glass border border-white/10 relative">
+                <button onClick={() => setShowCatModal(false)} className="absolute top-6 right-6 text-gray-400 hover:text-white">
+                  <i data-lucide="x" className="w-6 h-6"></i>
+                </button>
+                <h3 className="text-xl font-extrabold text-white mb-6">Manage Category Channel</h3>
+                
+                <form onSubmit={handleSaveCategory} className="space-y-4 text-left">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Category Display Name</label>
+                    <input 
+                      type="text" 
+                      value={catForm.name} 
+                      onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+                      required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Genre Type</label>
+                    <input 
+                      type="text" 
+                      value={catForm.genre} 
+                      onChange={(e) => setCatForm({ ...catForm, genre: e.target.value })}
+                      required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Interface Language</label>
+                    <input 
+                      type="text" 
+                      value={catForm.language} 
+                      onChange={(e) => setCatForm({ ...catForm, language: e.target.value })}
+                      required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                    />
+                  </div>
+                  <button type="submit" className="w-full mt-4 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-xl transition shadow-neon-red">
+                    Apply Category Settings
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL SYSTEM (Add Banner) */}
+          {showBannerModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
+              <div className="w-full max-w-md glass-panel p-8 rounded-3xl shadow-glass border border-white/10 relative">
+                <button onClick={() => setShowBannerModal(false)} className="absolute top-6 right-6 text-gray-400 hover:text-white">
+                  <i data-lucide="x" className="w-6 h-6"></i>
+                </button>
+                <h3 className="text-xl font-extrabold text-white mb-6">Create Hero Banner</h3>
+                
+                <form onSubmit={handleSaveBanner} className="space-y-4 text-left">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Banner Title</label>
+                    <input 
+                      type="text" 
+                      value={bannerForm.title} 
+                      onChange={(e) => setBannerForm({ ...bannerForm, title: e.target.value })}
+                      required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Banner Image URL</label>
+                    <input 
+                      type="text" 
+                      value={bannerForm.imageUrl} 
+                      onChange={(e) => setBannerForm({ ...bannerForm, imageUrl: e.target.value })}
+                      required className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-xs font-mono" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Banner Feed Type</label>
+                      <select 
+                        value={bannerForm.type} 
+                        onChange={(e) => setBannerForm({ ...bannerForm, type: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm"
+                      >
+                        <option value="carousel">Home Carousel</option>
+                        <option value="shorts">Shorts Feed</option>
+                        <option value="splash">Splash Screen</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Linked Video ID</label>
+                      <input 
+                        type="text" 
+                        value={bannerForm.targetVideoId} 
+                        onChange={(e) => setBannerForm({ ...bannerForm, targetVideoId: e.target.value })}
+                        placeholder="vid_1" className="w-full px-4 py-2.5 rounded-xl glass-input text-sm" 
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full mt-4 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-xl transition shadow-neon-red">
+                    Publish Banner Card
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL SYSTEM (Asset Preview Dialog) */}
+          {previewAsset && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+              <div className="w-full max-w-3xl glass-panel p-6 rounded-3xl shadow-glass border border-white/10 relative">
+                <button onClick={() => setPreviewAsset(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 p-2 bg-black/45 rounded-full">
+                  <i data-lucide="x" className="w-5 h-5"></i>
+                </button>
+                
+                {previewAsset.endsWith('.mp4') || previewAsset.endsWith('.m3u8') ? (
+                  <div className="aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl">
+                    <video src={previewAsset} controls autoplay className="w-full h-full"></video>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl overflow-hidden shadow-2xl bg-black flex justify-center items-center max-h-[70vh]">
+                    <img src={previewAsset} className="max-w-full max-h-full object-contain" />
+                  </div>
+                )}
+                <div className="mt-4 text-left font-mono text-xs text-gray-400 break-all select-all p-3 bg-black/25 rounded-xl">
+                  CDN URL: {previewAsset}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+
+</body>
+</html>

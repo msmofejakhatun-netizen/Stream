@@ -16,6 +16,7 @@ const videoRouter = require('./routes/videos');
 const aiRouter = require('./routes/ai');
 const paymentsRouter = require('./routes/payments');
 const notificationsRouter = require('./routes/notifications');
+const adminRouter = require('./routes/admin');
 
 // Middleware
 const { metricsMiddleware, exposeMetrics } = require('./middleware/metrics');
@@ -67,6 +68,7 @@ app.use('/api/videos', videoRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/admin', adminRouter);
 
 // Top-Level Alias API Routes for Complete Android Compatibility
 const { authenticateToken } = require('./middleware/auth');

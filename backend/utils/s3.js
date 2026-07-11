@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
@@ -129,9 +129,43 @@ async function deleteFile(s3Key) {
   }
 }
 
+async function listFiles(prefix = '') {
+  if (!s3Client || !BUCKET_NAME) return [];
+  try {
+    const command = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: prefix,
+    });
+    const response = await s3Client.send(command);
+    
+    let baseS3Url = process.env.R2_PUBLIC_URL || process.env.S3_PUBLIC_URL;
+    if (!baseS3Url) {
+      if (accountId) {
+        baseS3Url = `https://${BUCKET_NAME}.${accountId}.r2.cloudflarestorage.com`;
+      } else {
+        baseS3Url = `https://${BUCKET_NAME}.s3.amazonaws.com`;
+      }
+    }
+    if (baseS3Url.endsWith('/')) {
+      baseS3Url = baseS3Url.slice(0, -1);
+    }
+
+    return (response.Contents || []).map(item => ({
+      key: item.Key,
+      size: item.Size,
+      lastModified: item.LastModified,
+      url: `${baseS3Url}/${item.Key}`
+    }));
+  } catch (error) {
+    logger.error(`Cloudflare R2 list files failed: ${error.message}`);
+    return [];
+  }
+}
+
 module.exports = {
   uploadFile,
   uploadHLSDirectory,
   deleteFile,
+  listFiles,
   isConfigured: () => !!s3Client
 };

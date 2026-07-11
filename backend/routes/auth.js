@@ -22,7 +22,11 @@ async function findUserByEmail(email) {
         avatarUrl: rows[0].avatar_url,
         isGuest: rows[0].is_guest,
         joinedDate: rows[0].joined_date,
-        subscribersCount: rows[0].subscribers_count
+        subscribersCount: rows[0].subscribers_count,
+        role: rows[0].role || 'User',
+        isBanned: rows[0].is_banned || false,
+        isVerified: rows[0].is_verified || false,
+        isPremium: rows[0].is_premium || false
       };
     }
   } catch (err) {
@@ -31,7 +35,7 @@ async function findUserByEmail(email) {
   return localUsers.get(email) || null;
 }
 
-async function createUser({ id, email, passwordHash, displayName, avatarUrl, isGuest }) {
+async function createUser({ id, email, passwordHash, displayName, avatarUrl, isGuest, role }) {
   const user = {
     id,
     email,
@@ -40,14 +44,18 @@ async function createUser({ id, email, passwordHash, displayName, avatarUrl, isG
     avatarUrl: avatarUrl || `https://images.unsplash.com/photo-${Math.floor(Math.random() * 5000) + 1500000000000}?auto=format&fit=crop&w=120&q=80`,
     isGuest: !!isGuest,
     joinedDate: 'Jul 2026',
-    subscribersCount: 0
+    subscribersCount: 0,
+    role: role || 'User',
+    isBanned: false,
+    isVerified: false,
+    isPremium: false
   };
 
   try {
     await db.query(`
-      INSERT INTO users (id, email, password_hash, display_name, avatar_url, is_guest, joined_date, subscribers_count)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [user.id, user.email, user.passwordHash, user.displayName, user.avatarUrl, user.isGuest, user.joinedDate, user.subscribersCount]);
+      INSERT INTO users (id, email, password_hash, display_name, avatar_url, is_guest, joined_date, subscribers_count, role)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [user.id, user.email, user.passwordHash, user.displayName, user.avatarUrl, user.isGuest, user.joinedDate, user.subscribersCount, user.role]);
   } catch (err) {
     console.error('Database error on createUser, storing in memory fallback:', err.message);
     localUsers.set(email, user);
@@ -79,7 +87,14 @@ router.post('/register', async (req, res) => {
       displayName
     });
 
-    const token = jwt.sign({ id: user.id, email: user.email, displayName: user.displayName }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role || 'User',
+      isVerified: user.isVerified || false,
+      isPremium: user.isPremium || false
+    }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
       token,
@@ -90,7 +105,10 @@ router.post('/register', async (req, res) => {
         avatarUrl: user.avatarUrl,
         isGuest: user.isGuest,
         joinedDate: user.joinedDate,
-        subscribersCount: user.subscribersCount
+        subscribersCount: user.subscribersCount,
+        role: user.role || 'User',
+        isVerified: user.isVerified || false,
+        isPremium: user.isPremium || false
       }
     });
   } catch (err) {
@@ -111,12 +129,23 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Your account has been banned by an administrator.' });
+    }
+
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, displayName: user.displayName }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role || 'User',
+      isVerified: user.isVerified || false,
+      isPremium: user.isPremium || false
+    }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
       token,
@@ -127,7 +156,10 @@ router.post('/login', async (req, res) => {
         avatarUrl: user.avatarUrl,
         isGuest: user.isGuest,
         joinedDate: user.joinedDate,
-        subscribersCount: user.subscribersCount
+        subscribersCount: user.subscribersCount,
+        role: user.role || 'User',
+        isVerified: user.isVerified || false,
+        isPremium: user.isPremium || false
       }
     });
   } catch (err) {
@@ -156,7 +188,18 @@ router.post('/google', async (req, res) => {
       });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, displayName: user.displayName }, JWT_SECRET, { expiresIn: '7d' });
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Your account has been banned by an administrator.' });
+    }
+
+    const token = jwt.sign({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role || 'User',
+      isVerified: user.isVerified || false,
+      isPremium: user.isPremium || false
+    }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
       token,
@@ -167,7 +210,10 @@ router.post('/google', async (req, res) => {
         avatarUrl: user.avatarUrl,
         isGuest: user.isGuest,
         joinedDate: user.joinedDate,
-        subscribersCount: user.subscribersCount
+        subscribersCount: user.subscribersCount,
+        role: user.role || 'User',
+        isVerified: user.isVerified || false,
+        isPremium: user.isPremium || false
       }
     });
   } catch (err) {
@@ -191,7 +237,15 @@ router.post('/guest', async (req, res) => {
       isGuest: true
     });
 
-    const token = jwt.sign({ id: user.id, email: user.email, displayName: user.displayName, isGuest: true }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      isGuest: true,
+      role: 'User',
+      isVerified: false,
+      isPremium: false
+    }, JWT_SECRET, { expiresIn: '1d' });
 
     res.json({
       token,
@@ -202,7 +256,10 @@ router.post('/guest', async (req, res) => {
         avatarUrl: user.avatarUrl,
         isGuest: true,
         joinedDate: user.joinedDate,
-        subscribersCount: 0
+        subscribersCount: 0,
+        role: 'User',
+        isVerified: false,
+        isPremium: false
       }
     });
   } catch (err) {
